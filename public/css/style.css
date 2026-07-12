@@ -1,0 +1,35 @@
+.signup{
+    display: none;
+}
+.update-form{
+    width: 50%;
+    margin: auto;
+    border: 1.5px solid rgb(71, 71, 71);
+}
+.hr-1{
+    border: 0;
+    height: 1px;
+    background-image: linear-gradient(to right, rgba(0, 0, 0, 0), rgba(139, 17, 233, 0.5), rgba(0, 0, 0, 0));
+}
+
+.add-pat-form{
+    display: none;
+}
+.search-pat-form{
+    display: none;
+}
+.close{
+    display: none;
+}
+.search-result{
+    display: none;
+}
+.success{
+    display: none;
+}
+.add-report-form{
+    display: none;
+}
+.no-rep-found{
+    display: none;
+}

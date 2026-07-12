@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Detail</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <header class="text-gray-600 body-font">
+        <div class="container mx-auto flex flex-wrap p-5 flex-col md:flex-row items-center">
+            <a href="" class="flex title-font font-medium items-center text-gray-900 mb-4 md:mb-0">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round"
+                    stroke-linejoin="round" stroke-width="2" class="w-10 h-10 text-white p-2 bg-purple-500 rounded-full"
+                    viewBox="0 0 24 24">
+                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+                </svg>
+                <span class="ml-3 text-xl">Your Health</span>
+            </a>
+
+
+        </div>
+    </header>
+    <section class="text-gray-600 body-font">
+        <div class="container px-5 py-12 mx-auto flex flex-wrap items-center">
+            <h1 class="title-font  mb-4 text-white bg-purple-500 py-2 px-8 rounded font-bold text-2xl">Patient Details
+            </h1>
+            <div class="w-full bg-gray-100 p-8 rounded mx-auto shadow-2xl">
+                <h1 class="title-font font-medium text-3xl text-gray-900">{{name}}</h1>
+                <p class="leading-relaxed mt-4">Age : {{age}}</p>
+                <p class="leading-relaxed mt-4">Weight : {{weight}} Kg</p>
+                <p class="getId leading-relaxed mt-4">ID : {{id}}</p>
+                <p class="leading-relaxed mt-4">Phone : {{phone}}</p>
+                <p class="leading-relaxed mt-4">Created on : {{createdAt}}</p>
+            </div>
+        </div>
+
+    </section>
+    <hr class="hr-1">
+    
+    <section class="text-gray-600 body-font">
+        <div class="add-rep-here container px-5 py-4 mx-auto item-center">
+                {{reports}}
+            <h2 class="text-center w-full text-white bg-purple-500 text-2xl rounded py-4 font-medium title-font mb-5">All Reports</h2>
+        </div>
+        <div class="no-rep-found ">
+            <h2 class="text-center w-full  font-medium title-font mb-5">No Report Found</h2>
+        </div>
+    </section>
+
+    {{>footer}}
+    <script src="/js/getRes.js"></script>
+</body>
+
+</html>
