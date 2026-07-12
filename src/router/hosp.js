@@ -146,4 +146,10 @@ router.post('/updateme', auth, async (req,res)=>{
     }
 })
 
+router.get('/adminMain', auth, (req, res) => {
+    res.render('adminMain', {
+        name: req.hosp.name
+    });
+});
+
 module.exports = router
