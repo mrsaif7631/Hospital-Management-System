@@ -11,17 +11,19 @@ const sharp = require('sharp')
 router.post('/signup', async (req,res)=>{
     const hosp = new Hospital(req.body)
     try{
+       
         await hosp.save()
         
         //confirm email
         //account.confMail(hosp.email,hosp.name, hosp._id)
         const token = await hosp.generateToken()
-        // res.status(201).send({hosp, token})
+        //res.status(201).send({hosp, token})
         res.render('activate',{
             id:hosp._id
         })
     }catch(e){
-       // res.status(401).send(e)
+        //res.status(401).send(e)
+        console.log('Error',e)
        res.render('401')
     }
 })
