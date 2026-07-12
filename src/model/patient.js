@@ -30,7 +30,7 @@ const patientSchema = new mongoose.Schema({
     },
     status:{
         type: String,
-        enum:['Discharged','Admit']
+        enum:['Discharged','Admit','Admitted']
     },
     reports:[],
     owner:{

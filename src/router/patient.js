@@ -5,30 +5,134 @@ const router = new express.Router()
 const Patient = require('../model/patient')
 //const sms = require('../sendsms/sms')
 
-//add patient
-router.post('/patients', auth, async (req, res) => {
-    const patient = new Patient({
-        ...req.body,
-        owner: req.hosp._id
-    })
+
+router.post('/patients/add', auth, async (req, res) => {
 
     try {
+        const normalizedStatus = req.body.status === 'Admitted' ? 'Admit' : req.body.status;
+        const patient = new Patient({
+            ...req.body,
+            status: normalizedStatus,
+            owner: req.hosp._id
+        })
+
         await patient.save()
-        // res.status(201).send(patient)
-        const urlf = '/getPat/'+ patient._id
-        res.redirect(urlf)
+
+        res.redirect('/patients?added=1')
+
     } catch (e) {
-        // res.status(400).send(e)
-        res.render('401')
+        console.error('Add patient failed:', e)
+
+        res.status(400).render('addPatient', {
+            error: 'Unable to add patient.'
+        })
+
     }
+
 })
 
-//sort the patient
-///patients?status=Admit or Discharged
-//limit & skip
-// GET /tasks?limit=10&skip=0
-//sort
-//GET /tasks?sortBy=createdAt_asc or desc
+//add patient
+// Show Add Patient Page
+router.get('/patients/add', auth, (req, res) => {
+    res.render('addPatient', {
+        title: 'Add Patient'
+    })
+})
+
+router.get('/patients', auth, async (req, res) => {
+
+    try {
+
+        const owner = req.hosp._id;
+
+        const [
+            patients,
+            totalPatients,
+            admittedPatients,
+            dischargedPatients
+        ] = await Promise.all([
+
+            Patient.find({ owner })
+                .sort({ createdAt: -1 })
+                .lean()
+                .then(items => items.map(item => ({
+                    ...item,
+                    formattedDate: new Date(item.createdAt).toLocaleDateString()
+                }))),
+
+            Patient.countDocuments({ owner }),
+
+            Patient.countDocuments({
+                owner,
+                status: "Admit"
+            }),
+
+            Patient.countDocuments({
+                owner,
+                status: "Discharged"
+            })
+
+        ]);
+
+        res.render("patient", {
+            patients,
+            totalPatients,
+            admittedPatients,
+            dischargedPatients,
+            message: req.query.added === '1' ? 'Patient added successfully.' : ''
+        });
+
+    } catch (err) {
+
+        console.error(err);
+
+        res.status(500).render("401");
+
+    }
+
+});
+
+router.get('/patients/search', auth, async (req, res) => {
+    try {
+        const owner = req.hosp._id;
+        const searchTerm = (req.query.q || '').trim();
+        const statusFilter = req.query.status || '';
+
+        const query = { owner };
+
+        if (searchTerm) {
+            query.$or = [
+                { name: { $regex: searchTerm, $options: 'i' } },
+                { phone: { $regex: searchTerm, $options: 'i' } },
+                { _id: searchTerm }
+            ];
+        }
+
+        if (statusFilter) {
+            query.status = statusFilter;
+        }
+
+        const patients = await Patient.find(query)
+            .sort({ createdAt: -1 })
+            .lean()
+            .then(items => items.map(item => ({
+                ...item,
+                formattedDate: new Date(item.createdAt).toLocaleDateString()
+            })));
+
+        res.render('searchPatient', {
+            title: 'Search Patients',
+            patients,
+            searchTerm,
+            statusFilter,
+            hasResults: patients.length > 0
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).render('401');
+    }
+});
+
 router.get('/findPatients', auth, async (req, res) => {
 
     const match = {}
@@ -83,32 +187,36 @@ router.post('/add_Reports/:id', auth, async (req,res)=>{
     }
 })
 
-router.get('/getPat/:id', auth, async (req,res)=>{
-    const _id = req.params.id
-    try {
-       
-        const pat = await Patient.findOne({ _id, owner: req.hosp._id })
+router.get('/getPat/:id', auth, async (req, res) => {
 
-        if (!pat) {
-            // return res.status(404).send()
-            return res.render('401')
+    try {
+
+        const patient = await Patient.findOne({
+            _id: req.params.id,
+            owner: req.hosp._id
+        }).lean();
+
+        if (!patient) {
+            return res.status(404).render("401");
         }
-        // res.send(pat)
-        res.render('PatDetails',{
-            name: pat.name,
-            age:pat.age,
-            address:pat.address,
-            gender:pat.gender,
-            id:pat._id,
-            weight:pat.weight,
-            phone:pat.phone,
-            createdAt:pat.createdAt.toString().substr(4,12)
-        })
-    } catch (e) {
-        // res.status(500).send()
-        res.render('401')
+
+        res.render("PatDetails", {
+            ...patient,
+            id: patient._id,
+            status: patient.status,
+            createdAt: new Date(patient.createdAt)
+                .toLocaleDateString()
+        });
+
+    } catch (error) {
+
+        console.error(error);
+
+        res.status(500).render("401");
+
     }
-})
+
+});
 
 router.get('/getResult/:id', async (req,res)=>{
     const _id = req.params.id

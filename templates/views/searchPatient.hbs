@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{title}}</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100">
+
+{{> header}}
+
+<section class="text-gray-600 body-font">
+    <div class="container px-5 py-10 mx-auto">
+        <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-lg p-8">
+            <h1 class="text-3xl font-bold text-center mb-8">Search Patients</h1>
+
+            <form method="GET" action="/patients/search" class="mb-8">
+                <div class="flex flex-col md:flex-row gap-4">
+                    <input
+                        type="text"
+                        name="q"
+                        value="{{searchTerm}}"
+                        placeholder="Search by name, phone, or ID"
+                        class="flex-1 border rounded-lg p-3"
+                    >
+                    <select name="status" class="border rounded-lg p-3">
+                        <option value="">All statuses</option>
+                        <option value="Admit" {{#if (eq statusFilter 'Admit')}}selected{{/if}}>Admit</option>
+                        <option value="Discharged" {{#if (eq statusFilter 'Discharged')}}selected{{/if}}>Discharged</option>
+                    </select>
+                    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg">
+                        Search
+                    </button>
+                </div>
+            </form>
+
+            <div class="flex justify-end mb-4">
+                <a href="/patients" class="text-purple-600 font-semibold hover:underline">Back to Patients</a>
+            </div>
+
+            {{#if hasResults}}
+            <div class="overflow-x-auto">
+                <table class="table-auto w-full shadow-sm">
+                    <thead>
+                        <tr>
+                            <th class="bg-blue-600 text-white py-3">Name</th>
+                            <th class="bg-blue-600 text-white py-3">Phone</th>
+                            <th class="bg-blue-600 text-white py-3">Status</th>
+                            <th class="bg-blue-600 text-white py-3">Date</th>
+                            <th class="bg-blue-600 text-white py-3">Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {{#each patients}}
+                        <tr class="text-center border-b hover:bg-gray-50">
+                            <td class="py-3">{{this.name}}</td>
+                            <td>{{this.phone}}</td>
+                            <td>{{this.status}}</td>
+                            <td>{{this.formattedDate}}</td>
+                            <td>
+                                <a href="/getPat/{{this._id}}" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded">View</a>
+                            </td>
+                        </tr>
+                        {{/each}}
+                    </tbody>
+                </table>
+            </div>
+            {{else}}
+                <div class="text-center text-gray-500 py-8">
+                    No patients matched your search.
+                </div>
+            {{/if}}
+        </div>
+    </div>
+</section>
+
+{{> footer}}
+</body>
+</html>

@@ -35,6 +35,7 @@ app.set('view engine','hbs')
 app.use(express.static(public))
 app.set('views',viewpath)
 hbs.registerPartials(partialpath)
+hbs.registerHelper('eq', (a, b) => a === b)
 
 app.get('/', (req,res)=>{
     res.render('index')
@@ -44,7 +45,7 @@ app.get('/log',(req,res)=>{
     res.render('index')
 })
 
-app.get('/patien', (req,res)=>{
+app.get('/patients', (req,res)=>{
     res.render('patient')
 })
 

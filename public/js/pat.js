@@ -1,5 +1,5 @@
 
-console.log('client')
+//console.log('client')
 
 const table = document.querySelector('.disp-pat')
 
