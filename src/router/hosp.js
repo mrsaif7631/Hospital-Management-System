@@ -29,7 +29,7 @@ router.post('/signup', async (req, res) => {
         await hosp.save();
 
         // Create activation link
-        const activationLink = `http://localhost:3000/activate/${hosp._id}`;
+        const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
 
         // Send Telegram notification to Admin
         await sendTelegram(`
