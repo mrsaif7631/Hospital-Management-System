@@ -3,70 +3,200 @@ const router = new express.Router()
 const Hospital = require('../model/hosp')
 const bcrypt = require('bcryptjs')
 const auth = require('../middleware/auth')
+const sendTelegram = require('../router/telegram');
 const multer = require('multer')
 const sharp = require('sharp')
 
 
-//signup
-router.post('/signup', async (req,res)=>{
-    const hosp = new Hospital(req.body)
-    try{
-       
-        await hosp.save()
-        
-        //confirm email
-        //account.confMail(hosp.email,hosp.name, hosp._id)
-        const token = await hosp.generateToken()
-        //res.status(201).send({hosp, token})
-        res.render('activate',{
-            id:hosp._id
-        })
-    }catch(e){
-        //res.status(401).send(e)
-        console.log('Error',e)
-       res.render('401')
-    }
-})
+// Signup
+router.post('/signup', async (req, res) => {
 
-//activate account
-router.get('/activate/:id' , async (req,res)=>{
-    const _id = req.params.id
-    try{
-        const hosp = await Hospital.findById(_id)
-        if(!hosp){
-            return res.status(404).send()
-        }
-        hosp.status = 'Active'
-        await hosp.save()
-        // res.send(hosp)
-        res.render('activDone')
-    }
-    catch(e){
-        // res.status(500).send()
-        res.render('401')
-    }
-})
+    // Default role = Doctor
+    req.body.role = 0;
 
-//login
-router.post('/login', async (req,res)=>{
-    //console.log(req.body.email)
-    try{
-        const hosp = await Hospital.findByCredentials(req.body.email,req.body.password)
-        if(hosp.status==='Pending'){
-            return res.render('index')
-        }
-        const token = await hosp.generateToken()
-        
-        //res.header('Authorization', 'Bearer '+ token); 
-        res.cookie('auth',token);
-        //res.send({hosp,token})
-        
-        res.redirect('/home')
-    }catch(e){
-        // res.status(400).send(e)
-        res.render('401')
+    // Make Admin if correct admin key is entered
+    if (
+        req.body.adminKey &&
+        req.body.adminKey === process.env.ADMIN_KEY
+    ) {
+        req.body.role = 1;
     }
-})
+
+    const hosp = new Hospital(req.body);
+
+    try {
+
+        await hosp.save();
+
+        // Create activation link
+        const activationLink = `http://localhost:3000/activate/${hosp._id}`;
+
+        // Send Telegram notification to Admin
+        await sendTelegram(`
+🏥 NEW HOSPITAL REGISTRATION
+
+Hospital: ${hosp.name}
+
+Email: ${hosp.email}
+
+Role: ${hosp.role === 1 ? "Admin" : "Doctor"}
+
+Status: Pending Activation
+
+✅ Activate Account:
+
+${activationLink}
+`);
+
+        // Optional login token
+        await hosp.generateToken();
+
+        res.render('activate', {
+            id: hosp._id
+        });
+
+    } catch (e) {
+
+        console.log('Signup Error:', e);
+
+        res.render('401');
+
+    }
+
+});
+
+
+// Activate Account
+
+router.get('/activate/:id', async (req, res) => {
+
+
+
+    try {
+
+
+
+        const hosp = await Hospital.findById(req.params.id);
+
+
+
+        if (!hosp) {
+
+            return res.status(404).render('401');
+
+        }
+
+
+
+        if (hosp.status === 'Active') {
+
+            return res.render('activDone', {
+
+                message: 'Account is already activated.'
+
+            });
+
+        }
+
+
+
+        hosp.status = 'Active';
+
+
+
+        await hosp.save();
+
+
+
+        // Notify admin that activation succeeded
+
+        await sendTelegram(`
+
+✅ HOSPITAL ACTIVATED
+
+
+
+Hospital: ${hosp.name}
+
+
+
+Email: ${hosp.email}
+
+
+
+Status: Active
+
+`);
+
+
+
+        res.render('activDone', {
+
+            hospital: hosp
+
+        });
+
+
+
+    } catch (e) {
+
+
+
+        console.log('Activation Error:', e);
+
+
+
+        res.render('401');
+
+
+
+    }
+
+
+
+});
+
+// Login
+router.post('/login', async (req, res) => {
+
+    try {
+
+        const hosp = await Hospital.findByCredentials(
+            req.body.email,
+            req.body.password
+        );
+
+        // Check account activation
+        if (hosp.status === 'Pending') {
+
+            return res.render('index', {
+                error: 'Your account is waiting for admin approval.'
+            });
+
+        }
+
+        // Generate JWT token
+        const token = await hosp.generateToken();
+
+        // Store token in cookie
+        res.cookie('auth', token, {
+            httpOnly: true
+        });
+
+        // Everyone goes to the same dashboard
+        return res.redirect('/home');
+
+    } catch (e) {
+
+        console.log("Login Error:", e.message);
+
+        return res.render('401', {
+            error: 'Invalid email or password.'
+        });
+
+    }
+
+});
 
 //profile
 router.get('/me', auth, async (req,res)=>{
@@ -110,13 +240,26 @@ router.post('/logoutAll', auth, async (req,res)=>{
     }
 })
 
-//home
-router.get('/home', auth, async (req,res)=>{
-    //console.log(req.hosp)
-    res.render('main',{
-        name: req.hosp.name
-    })
-})
+// Home
+router.get('/home', auth, async (req, res) => {
+
+    try {
+
+        res.render('main', {
+            name: req.hosp.name,
+            email: req.hosp.email,
+            role: req.hosp.role,              // 0 = Doctor, 1 = Admin
+            isAdmin: req.hosp.role === 1      // true only for admin
+        });
+
+    } catch (e) {
+
+        console.log("Home Error:", e);
+        res.render('401');
+
+    }
+
+});
 
 //update
 router.post('/updateme', auth, async (req,res)=>{

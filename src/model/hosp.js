@@ -30,6 +30,12 @@ const hospSchema = new mongoose.Schema(
       trim: true,
     },
 
+    role: {
+        type: Number,
+        default: 0,
+        enum: [0,1]
+    },
+
     password: {
       type: String,
       required: true,

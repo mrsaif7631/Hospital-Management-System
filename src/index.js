@@ -8,7 +8,7 @@ const bodyParser = require('body-parser')
 
 const hospRouter = require('./router/hosp')
 const patRouter = require('./router/patient')
-const adminRouter = require('./router/admin');
+
 
 const app = express()
 const port = process.env.PORT || 3000
@@ -19,7 +19,6 @@ app.use(bodyParser.urlencoded({ extended: false }))
 app.use(cook())
 app.use(hospRouter)
 app.use(patRouter)
-app.use(adminRouter)
 
 
 // app.use(function(req, res, next) {
