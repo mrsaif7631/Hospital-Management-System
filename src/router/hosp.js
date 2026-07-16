@@ -50,7 +50,7 @@ ${activationLink}
        
 
         // Generate login token
-        await hosp.generateToken();
+        //await hosp.generateToken();
 
         // Show confirmation page
         res.render('activate');
