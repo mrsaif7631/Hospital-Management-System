@@ -43,18 +43,11 @@ Role: ${hosp.role === 1 ? "Admin" : "Doctor"}
 
 Status: Pending Activation
 
-✅ Activate Account:
-/*
-${activationLink}
-`);
+await hosp.generateToken();
 
-        // Optional login token
-        await hosp.generateToken();
-
-        res.render('activate', {
-            id: hosp._id
-        });
-        */
+       res.render('activate', {
+         id: hosp._id
+       });
 
     } catch (e) {
 
