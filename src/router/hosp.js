@@ -51,17 +51,8 @@ router.post('/signup', async (req, res) => {
 
         await hosp.save();
 
-<<<<<<< HEAD
         // Create activation link
-        const approvalToken = buildApprovalToken(hosp._id.toString());
-        const baseUrl = getBaseUrl(req);
-        const activationLink = `${baseUrl}/activate/${hosp._id}?token=${approvalToken}`;
-        const telegramApprovalLink = `${baseUrl}/admin/telegram-approve/${hosp._id}?token=${approvalToken}`;
-=======
-        // Uncomment this when you want to send Telegram notifications
-       
         const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
->>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
 
         await sendTelegram(`
 🏥 NEW HOSPITAL REGISTRATION
@@ -71,29 +62,13 @@ Email: ${hosp.email}
 Role: ${hosp.role === 1 ? 'Admin' : 'Doctor'}
 Status: Pending Activation
 
-<<<<<<< HEAD
-Please review and approve this account.
-`, {
-            parse_mode: 'HTML',
-            reply_markup: JSON.stringify({
-                inline_keyboard: [
-                    [
-                        { text: 'Approve Account', url: telegramApprovalLink },
-                        { text: 'Open Activation Link', url: activationLink }
-                    ]
-                ]
-            })
-        });
-=======
 ✅ Activate Account:
 
 ${activationLink}
 `);
-       
->>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
 
-        // Generate login token
-        //await hosp.generateToken();
+        // Optional login token
+        await hosp.generateToken();
 
         // Show confirmation page
         res.render('activate');
@@ -113,24 +88,11 @@ ${activationLink}
 
 router.get('/activate/:id', async (req, res) => {
 
-<<<<<<< HEAD
-=======
-   console.log("Activation route hit!");
-    console.log("User-Agent:", req.headers["user-agent"]);
-    console.log("IP:", req.ip);
 
->>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
+
     try {
-        const providedToken = req.query.token || '';
-        const expectedToken = buildApprovalToken(req.params.id);
-        const isAdmin = req.hosp && req.hosp.role === 1;
-        const hasValidToken = providedToken && providedToken === expectedToken;
 
-        if (!isAdmin && !hasValidToken) {
-            return res.status(403).render('401', {
-                error: 'Only an authenticated admin or a valid approval link can activate this account.'
-            });
-        }
+
 
         const hosp = await Hospital.findById(req.params.id);
 
