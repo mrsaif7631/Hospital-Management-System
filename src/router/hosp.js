@@ -1,4 +1,5 @@
 const express = require('express')
+const crypto = require('crypto')
 const router = new express.Router()
 const Hospital = require('../model/hosp')
 const bcrypt = require('bcryptjs')
@@ -7,6 +8,28 @@ const sendTelegram = require('../router/telegram');
 const multer = require('multer')
 const sharp = require('sharp')
 
+const buildApprovalToken = (hospitalId) => {
+    const secret = process.env.APPROVAL_SECRET || process.env.JWT_SECRET || 'hospital-approval-secret';
+    return crypto.createHash('sha256').update(`${hospitalId}:${secret}`).digest('hex');
+};
+
+const getBaseUrl = (req) => {
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const protocol = Array.isArray(forwardedProto)
+        ? forwardedProto[0]
+        : forwardedProto || req.protocol;
+    const host = req.get('host');
+    return `${protocol || 'http'}://${host}`;
+};
+
+const ensureAdmin = (req, res, next) => {
+    if (!req.hosp || req.hosp.role !== 1) {
+        return res.status(403).render('401', {
+            error: 'Access denied. Admin privileges required.'
+        });
+    }
+    next();
+};
 
 // Signup
 router.post('/signup', async (req, res) => {
@@ -29,24 +52,32 @@ router.post('/signup', async (req, res) => {
         await hosp.save();
 
         // Create activation link
-        const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
+        const approvalToken = buildApprovalToken(hosp._id.toString());
+        const baseUrl = getBaseUrl(req);
+        const activationLink = `${baseUrl}/activate/${hosp._id}?token=${approvalToken}`;
+        const telegramApprovalLink = `${baseUrl}/admin/telegram-approve/${hosp._id}?token=${approvalToken}`;
 
         // Send Telegram notification to Admin
         await sendTelegram(`
 🏥 NEW HOSPITAL REGISTRATION
 
 Hospital: ${hosp.name}
-
 Email: ${hosp.email}
-
-Role: ${hosp.role === 1 ? "Admin" : "Doctor"}
-
+Role: ${hosp.role === 1 ? 'Admin' : 'Doctor'}
 Status: Pending Activation
 
-✅ Activate Account:
-
-${activationLink}
-`);
+Please review and approve this account.
+`, {
+            parse_mode: 'HTML',
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [
+                        { text: 'Approve Account', url: telegramApprovalLink },
+                        { text: 'Open Activation Link', url: activationLink }
+                    ]
+                ]
+            })
+        });
 
         // Optional login token
         await hosp.generateToken();
@@ -70,11 +101,17 @@ ${activationLink}
 
 router.get('/activate/:id', async (req, res) => {
 
-
-
     try {
+        const providedToken = req.query.token || '';
+        const expectedToken = buildApprovalToken(req.params.id);
+        const isAdmin = req.hosp && req.hosp.role === 1;
+        const hasValidToken = providedToken && providedToken === expectedToken;
 
-
+        if (!isAdmin && !hasValidToken) {
+            return res.status(403).render('401', {
+                error: 'Only an authenticated admin or a valid approval link can activate this account.'
+            });
+        }
 
         const hosp = await Hospital.findById(req.params.id);
 
@@ -154,6 +191,198 @@ Status: Active
 
 
 
+});
+
+router.get('/admin/dashboard', auth, ensureAdmin, async (req, res) => {
+    try {
+        const hospitals = await Hospital.find({}).sort({ createdAt: -1 });
+        const pending = hospitals.filter(hospital => hospital.status === 'Pending').length;
+        const active = hospitals.filter(hospital => hospital.status === 'Active').length;
+        const adminCount = hospitals.filter(hospital => hospital.role === 1).length;
+        const doctorCount = hospitals.filter(hospital => hospital.role === 0).length;
+
+        res.render('adminDashboard', {
+            name: req.hosp.name,
+            isAdmin: true,
+            totalHospitals: hospitals.length,
+            pendingHospitals: pending,
+            activeHospitals: active,
+            adminCount,
+            doctorCount,
+            latestHospitals: hospitals.slice(0, 5)
+        });
+    } catch (e) {
+        console.log('Admin Dashboard Error:', e);
+        res.render('401');
+    }
+});
+
+router.get('/admin/hospitals', auth, ensureAdmin, async (req, res) => {
+    try {
+        const searchTerm = (req.query.q || '').trim();
+        const statusFilter = req.query.status || '';
+
+        const query = {};
+
+        if (searchTerm) {
+            query.$or = [
+                { name: { $regex: searchTerm, $options: 'i' } },
+                { email: { $regex: searchTerm, $options: 'i' } }
+            ];
+        }
+
+        if (statusFilter) {
+            query.status = statusFilter;
+        }
+
+        const hospitals = await Hospital.find(query).sort({ createdAt: -1 });
+
+        res.render('adminHospitals', {
+            name: req.hosp.name,
+            isAdmin: true,
+            hospitals,
+            searchTerm,
+            statusFilter,
+            hasResults: hospitals.length > 0
+        });
+    } catch (e) {
+        console.log('Admin Hospitals Error:', e);
+        res.render('401');
+    }
+});
+
+router.post('/admin/hospitals/:id/activate', auth, ensureAdmin, async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+
+        if (!hospital) {
+            return res.status(404).render('401', {
+                error: 'Hospital account not found.'
+            });
+        }
+
+        hospital.status = 'Active';
+        await hospital.save();
+
+        await sendTelegram(`
+✅ HOSPITAL ACTIVATED
+
+Hospital: ${hospital.name}
+Email: ${hospital.email}
+Status: Active
+`);
+
+        return res.redirect('/admin/hospitals');
+    } catch (e) {
+        console.log('Activate Hospital Error:', e);
+        return res.render('401');
+    }
+});
+
+router.post('/admin/hospitals/:id/deactivate', auth, ensureAdmin, async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+
+        if (!hospital) {
+            return res.status(404).render('401', {
+                error: 'Hospital account not found.'
+            });
+        }
+
+        hospital.status = 'Pending';
+        await hospital.save();
+
+        await sendTelegram(`
+⚠️ HOSPITAL ACCESS SUSPENDED
+
+Hospital: ${hospital.name}
+Email: ${hospital.email}
+Status: Pending
+`);
+
+        return res.redirect('/admin/hospitals');
+    } catch (e) {
+        console.log('Deactivate Hospital Error:', e);
+        return res.render('401');
+    }
+});
+
+router.get('/adminMain', auth, ensureAdmin, (req, res) => {
+    res.redirect('/admin/dashboard');
+});
+
+router.get('/admin/reports', auth, ensureAdmin, async (req, res) => {
+    try {
+        const hospitals = await Hospital.find({}).sort({ createdAt: -1 });
+        const pending = hospitals.filter(hospital => hospital.status === 'Pending').length;
+        const active = hospitals.filter(hospital => hospital.status === 'Active').length;
+
+        res.render('adminReports', {
+            name: req.hosp.name,
+            isAdmin: true,
+            totalHospitals: hospitals.length,
+            pendingHospitals: pending,
+            activeHospitals: active
+        });
+    } catch (e) {
+        console.log('Admin Reports Error:', e);
+        res.render('401');
+    }
+});
+
+router.get('/admin/telegram-approve/:id', async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+
+        if (!hospital) {
+            return res.status(404).render('401', {
+                error: 'Hospital account not found.'
+            });
+        }
+
+        const expectedToken = buildApprovalToken(hospital._id.toString());
+        const providedToken = req.query.token || '';
+        const isAdmin = req.hosp && req.hosp.role === 1;
+        const hasValidToken = providedToken && providedToken === expectedToken;
+
+        if (!isAdmin && !hasValidToken) {
+            return res.status(403).render('401', {
+                error: 'Invalid or expired approval token.'
+            });
+        }
+
+        if (req.query.confirm === '1') {
+            if (hospital.status === 'Active') {
+                return res.render('activDone', {
+                    message: 'This account is already active.'
+                });
+            }
+
+            hospital.status = 'Active';
+            await hospital.save();
+
+            await sendTelegram(`
+✅ TELEGRAM APPROVAL SUCCESSFUL
+
+Hospital: ${hospital.name}
+Email: ${hospital.email}
+Status: Active
+`);
+
+            return res.render('activDone', {
+                hospital,
+                message: 'Account approved successfully.'
+            });
+        }
+
+        return res.render('adminApproval', {
+            hospital,
+            approvalUrl: `${getBaseUrl(req)}/admin/telegram-approve/${hospital._id}?token=${providedToken || ''}&confirm=1`
+        });
+    } catch (e) {
+        console.log('Telegram Approval Error:', e);
+        return res.render('401');
+    }
 });
 
 // Login

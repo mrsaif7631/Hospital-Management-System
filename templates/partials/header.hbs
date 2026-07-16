@@ -10,6 +10,11 @@
       <a href="/home" class="mr-5 hover:text-gray-900">Home</a>
       <a href="/me" class="mr-5 hover:text-gray-900">Profile</a>
       <a href="/patients" class="mr-5 hover:text-gray-900">Patients</a>
+      {{#if isAdmin}}
+      <a href="/admin/dashboard" class="mr-5 hover:text-gray-900">Admin</a>
+      <a href="/admin/hospitals" class="mr-5 hover:text-gray-900">Hospitals</a>
+      <a href="/admin/reports" class="mr-5 hover:text-gray-900">Reports</a>
+      {{/if}}
       <a class="mr-5 hover:text-gray-900">About</a>
       <a class="mr-5 hover:text-gray-900">Help</a>
     </nav>
