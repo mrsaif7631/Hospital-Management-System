@@ -28,10 +28,10 @@ router.post('/signup', async (req, res) => {
 
         await hosp.save();
 
-        // Create activation link
+        // Uncomment this when you want to send Telegram notifications
+       
         const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
 
-        // Send Telegram notification to Admin
         await sendTelegram(`
 🏥 NEW HOSPITAL REGISTRATION
 
@@ -43,11 +43,17 @@ Role: ${hosp.role === 1 ? "Admin" : "Doctor"}
 
 Status: Pending Activation
 
-await hosp.generateToken();
+✅ Activate Account:
 
-       res.render('activate', {
-         id: hosp._id
-       });
+${activationLink}
+`);
+       
+
+        // Generate login token
+        await hosp.generateToken();
+
+        // Show confirmation page
+        res.render('activate');
 
     } catch (e) {
 
@@ -56,7 +62,6 @@ await hosp.generateToken();
         res.render('401');
 
     }
-    
 
 });
 
