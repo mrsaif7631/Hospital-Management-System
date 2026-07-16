@@ -70,7 +70,9 @@ ${activationLink}
 
 router.get('/activate/:id', async (req, res) => {
 
-
+   console.log("Activation route hit!");
+    console.log("User-Agent:", req.headers["user-agent"]);
+    console.log("IP:", req.ip);
 
     try {
 
