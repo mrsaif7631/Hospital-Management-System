@@ -51,13 +51,18 @@ router.post('/signup', async (req, res) => {
 
         await hosp.save();
 
+<<<<<<< HEAD
         // Create activation link
         const approvalToken = buildApprovalToken(hosp._id.toString());
         const baseUrl = getBaseUrl(req);
         const activationLink = `${baseUrl}/activate/${hosp._id}?token=${approvalToken}`;
         const telegramApprovalLink = `${baseUrl}/admin/telegram-approve/${hosp._id}?token=${approvalToken}`;
+=======
+        // Uncomment this when you want to send Telegram notifications
+       
+        const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
+>>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
 
-        // Send Telegram notification to Admin
         await sendTelegram(`
 🏥 NEW HOSPITAL REGISTRATION
 
@@ -66,6 +71,7 @@ Email: ${hosp.email}
 Role: ${hosp.role === 1 ? 'Admin' : 'Doctor'}
 Status: Pending Activation
 
+<<<<<<< HEAD
 Please review and approve this account.
 `, {
             parse_mode: 'HTML',
@@ -78,13 +84,19 @@ Please review and approve this account.
                 ]
             })
         });
+=======
+✅ Activate Account:
 
-        // Optional login token
-        await hosp.generateToken();
+${activationLink}
+`);
+       
+>>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
 
-        res.render('activate', {
-            id: hosp._id
-        });
+        // Generate login token
+        //await hosp.generateToken();
+
+        // Show confirmation page
+        res.render('activate');
 
     } catch (e) {
 
@@ -101,6 +113,13 @@ Please review and approve this account.
 
 router.get('/activate/:id', async (req, res) => {
 
+<<<<<<< HEAD
+=======
+   console.log("Activation route hit!");
+    console.log("User-Agent:", req.headers["user-agent"]);
+    console.log("IP:", req.ip);
+
+>>>>>>> ad0bf7ce794800d550b06622cab13c7206b2c101
     try {
         const providedToken = req.query.token || '';
         const expectedToken = buildApprovalToken(req.params.id);
