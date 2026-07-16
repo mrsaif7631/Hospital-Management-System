@@ -44,7 +44,7 @@ Role: ${hosp.role === 1 ? "Admin" : "Doctor"}
 Status: Pending Activation
 
 ✅ Activate Account:
-
+/*
 ${activationLink}
 `);
 
@@ -54,6 +54,7 @@ ${activationLink}
         res.render('activate', {
             id: hosp._id
         });
+        */
 
     } catch (e) {
 
@@ -62,6 +63,7 @@ ${activationLink}
         res.render('401');
 
     }
+    
 
 });
 
