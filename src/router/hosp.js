@@ -14,12 +14,29 @@ const buildApprovalToken = (hospitalId) => {
 };
 
 const getBaseUrl = (req) => {
+    const configuredBaseUrl = process.env.BASE_URL || 'https://hospital-management-system-sstx.onrender.com';
+
+    if (configuredBaseUrl) {
+        return configuredBaseUrl.replace(/\/$/, '');
+    }
+
     const forwardedProto = req.headers['x-forwarded-proto'];
     const protocol = Array.isArray(forwardedProto)
         ? forwardedProto[0]
         : forwardedProto || req.protocol;
     const host = req.get('host');
     return `${protocol || 'http'}://${host}`;
+};
+
+const shouldActivateOnPost = (hospital) => {
+    return Boolean(hospital) && hospital.role !== 1;
+};
+
+const activateHospitalAccount = async (hospital) => {
+    hospital.status = 'Active';
+    hospital._explicitApproval = true;
+    await hospital.save();
+    return hospital;
 };
 
 const ensureAdmin = (req, res, next) => {
@@ -46,13 +63,14 @@ router.post('/signup', async (req, res) => {
     }
 
     const hosp = new Hospital(req.body);
+    hosp.status = 'Pending';
 
     try {
 
         await hosp.save();
 
-        // Create activation link
-        const activationLink = `https://hospital-management-system-sstx.onrender.com/activate/${hosp._id}`;
+        const approvalToken = buildApprovalToken(hosp._id.toString());
+        const activationLink = `${getBaseUrl(req)}/admin/telegram-approve/${hosp._id}?token=${approvalToken}`;
 
         await sendTelegram(`
 🏥 NEW HOSPITAL REGISTRATION
@@ -83,96 +101,47 @@ ${activationLink}
 
 });
 
-
-// Activate Account
-
 router.get('/activate/:id', async (req, res) => {
-
-
-
     try {
-
-
 
         const hosp = await Hospital.findById(req.params.id);
 
-
-
         if (!hosp) {
-
             return res.status(404).render('401');
-
         }
 
-
-
-        if (hosp.status === 'Active') {
-
-            return res.render('activDone', {
-
-                message: 'Account is already activated.'
-
-            });
-
-        }
-
-
-
-        hosp.status = 'Active';
-
-
-
-        await hosp.save();
-
-
-
-        // Notify admin that activation succeeded
-
-        await sendTelegram(`
-
-✅ HOSPITAL ACTIVATED
-
-
-
-Hospital: ${hosp.name}
-
-
-
-Email: ${hosp.email}
-
-
-
-Status: Active
-
-`);
-
-
-
-        res.render('activDone', {
-
+        res.render('activateConfirm', {
             hospital: hosp
-
         });
 
+    } catch (e) {
+        console.log(e);
+        res.render('401');
+    }
+});
 
+
+// Activate Account (only explicit approval should change status)
+router.post('/activate/:id', async (req, res) => {
+    try {
+
+        const hosp = await Hospital.findById(req.params.id);
+
+        if (!hosp) {
+            return res.status(404).render('401');
+        }
+
+        return res.render('activDone', {
+            hospital: hosp,
+            message: 'Approval must be confirmed through the admin action.'
+        });
 
     } catch (e) {
-
-
-
-        console.log('Activation Error:', e);
-
-
-
+        console.log(e);
         res.render('401');
-
-
-
     }
-
-
-
 });
+
 
 router.get('/admin/dashboard', auth, ensureAdmin, async (req, res) => {
     try {
@@ -232,6 +201,28 @@ router.get('/admin/hospitals', auth, ensureAdmin, async (req, res) => {
     }
 });
 
+
+router.get('/admin/hospitals/:id/activate', auth, ensureAdmin, async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+
+        if (!hospital) {
+            return res.status(404).render('401', {
+                error: 'Hospital account not found.'
+            });
+        }
+
+        res.render('adminActivateHospital', {
+            hospital
+        });
+
+    } catch (e) {
+        console.log('Activate Page Error:', e);
+        res.render('401');
+    }
+});
+
+
 router.post('/admin/hospitals/:id/activate', auth, ensureAdmin, async (req, res) => {
     try {
         const hospital = await Hospital.findById(req.params.id);
@@ -242,11 +233,14 @@ router.post('/admin/hospitals/:id/activate', auth, ensureAdmin, async (req, res)
             });
         }
 
-        hospital.status = 'Active';
-        await hospital.save();
+        if (hospital.status === 'Active') {
+            return res.redirect('/admin/hospitals');
+        }
+
+        await activateHospitalAccount(hospital);
 
         await sendTelegram(`
-✅ HOSPITAL ACTIVATED
+✅ HOSPITAL ACCESS APPROVED
 
 Hospital: ${hospital.name}
 Email: ${hospital.email}
@@ -254,11 +248,15 @@ Status: Active
 `);
 
         return res.redirect('/admin/hospitals');
+
     } catch (e) {
         console.log('Activate Hospital Error:', e);
-        return res.render('401');
+        res.render('401');
     }
 });
+
+
+
 
 router.post('/admin/hospitals/:id/deactivate', auth, ensureAdmin, async (req, res) => {
     try {
@@ -332,33 +330,53 @@ router.get('/admin/telegram-approve/:id', async (req, res) => {
             });
         }
 
-        if (req.query.confirm === '1') {
-            if (hospital.status === 'Active') {
-                return res.render('activDone', {
-                    message: 'This account is already active.'
-                });
-            }
+        const approvalUrl = `${getBaseUrl(req)}/admin/telegram-approve/${hospital._id}?token=${providedToken}`;
 
-            hospital.status = 'Active';
-            await hospital.save();
+        return res.render('adminApproval', {
+            hospital,
+            approvalUrl,
+            token: providedToken
+        });
+    } catch (e) {
+        console.log('Telegram Approval Error:', e);
+        return res.render('401');
+    }
+});
 
-            await sendTelegram(`
-✅ TELEGRAM APPROVAL SUCCESSFUL
+router.post('/admin/telegram-approve/:id', async (req, res) => {
+    try {
+        const hospital = await Hospital.findById(req.params.id);
+
+        if (!hospital) {
+            return res.status(404).render('401', {
+                error: 'Hospital account not found.'
+            });
+        }
+
+        const expectedToken = buildApprovalToken(hospital._id.toString());
+        const providedToken = req.body.token || '';
+        const isAdmin = req.hosp && req.hosp.role === 1;
+        const hasValidToken = providedToken && providedToken === expectedToken;
+
+        if (!isAdmin && !hasValidToken) {
+            return res.status(403).render('401', {
+                error: 'Invalid or expired approval token.'
+            });
+        }
+
+        await activateHospitalAccount(hospital);
+
+        await sendTelegram(`
+✅ HOSPITAL ACCESS APPROVED
 
 Hospital: ${hospital.name}
 Email: ${hospital.email}
 Status: Active
 `);
 
-            return res.render('activDone', {
-                hospital,
-                message: 'Account approved successfully.'
-            });
-        }
-
-        return res.render('adminApproval', {
+        return res.render('activDone', {
             hospital,
-            approvalUrl: `${getBaseUrl(req)}/admin/telegram-approve/${hospital._id}?token=${providedToken || ''}&confirm=1`
+            message: 'Hospital account approved successfully. You can now log in.'
         });
     } catch (e) {
         console.log('Telegram Approval Error:', e);

@@ -104,6 +104,28 @@ hospSchema.statics.findByCredentials = async function (email, password) {
   return hosp;
 };
 
+hospSchema.statics.normalizeHospitalStatus = function ({ role, requestedStatus, isNew = false, explicitApproval = false }) {
+  const normalizedRequestedStatus = requestedStatus === "Active" ? "Active" : "Pending";
+
+  if (role === 1) {
+    if (isNew) {
+      return "Pending";
+    }
+
+    if (explicitApproval && normalizedRequestedStatus === "Active") {
+      return "Active";
+    }
+
+    return "Pending";
+  }
+
+  if (isNew) {
+    return "Pending";
+  }
+
+  return normalizedRequestedStatus;
+};
+
 
 // ===============================
 // Generate JWT Token
@@ -146,6 +168,13 @@ hospSchema.methods.toJSON = function () {
 // ===============================
 
 hospSchema.pre("save", async function () {
+  this.status = this.constructor.normalizeHospitalStatus({
+    role: this.role,
+    requestedStatus: this.status,
+    isNew: this.isNew,
+    explicitApproval: Boolean(this._explicitApproval),
+  });
+
   if (this.isModified("password")) {
     this.password = await bcrypt.hash(this.password, 8);
   }
